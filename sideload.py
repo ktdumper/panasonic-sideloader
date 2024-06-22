@@ -35,7 +35,7 @@ def main():
     input_dir = sys.argv[1]
     output_dir = sys.argv[2]
 
-    jar_path = sp_path = jam_path = None
+    jar_path = sp_path = jam_path = sdf_path = None
 
     for fname in os.listdir(input_dir):
         if fname.endswith(".jar"):
@@ -44,6 +44,8 @@ def main():
             sp_path = fname
         elif fname.endswith(".jam"):
             jam_path = fname
+        elif fname.endswith(".sdf"):
+            sdf_path = fname
 
     if jar_path is None:
         raise RuntimeError("can't find jar")
@@ -58,7 +60,8 @@ def main():
     with open(os.path.join(input_dir, jam_path), "rb") as inf:
         jam = inf.read()
 
-    adf = bytearray(adf_template + patch_jam(jam, os.path.getsize(os.path.join(input_dir, jar_path))))
+    jam = patch_jam(jam, os.path.getsize(os.path.join(input_dir, jar_path)))
+    adf = bytearray(adf_template + jam)
     adf[0x1820:0x1824] = struct.pack("<I", len(jam))
 
     target = None
@@ -79,6 +82,8 @@ def main():
     with open(os.path.join(output_path, "sp"), "wb") as outf:
         outf.write(sp[0x40:])
     shutil.copyfile(os.path.join(input_dir, jar_path), os.path.join(output_path, "jar"))
+    if sdf_path is not None:
+        shutil.copyfile(os.path.join(input_dir, sdf_path), os.path.join(output_path, "sdf"))
 
     for filename in ["Entry", "JavaAdl", "JavaSys", "PushSms"]:
         rm_f(os.path.join(output_dir, filename))
