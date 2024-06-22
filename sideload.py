@@ -20,7 +20,12 @@ adf_template = struct.pack("<I 2052s 4120s I 144s I 20580s I I 12s I 52s I 832s 
 def patch_jam(jam, jar_len):
     config = configparser.ConfigParser()
     config.optionxform = str
-    config.read_string("[jam]\r\n" + jam.decode("shift-jis"))
+
+    try:
+        config.read_string("[jam]\r\n" + jam.decode("shift-jis"))
+    except UnicodeDecodeError:
+        print("WARN: can't patch jam due to UnicodeDecodeError")
+        return jam
 
     config["jam"]["AppSize"] = str(jar_len)
     config["jam"]["TargetDevice"] = "P01F"
@@ -49,13 +54,12 @@ def main():
 
     if jar_path is None:
         raise RuntimeError("can't find jar")
-    elif sp_path is None:
-        raise RuntimeError("can't find sp")
     elif jam_path is None:
         raise RuntimeError("can't find jam")
 
-    with open(os.path.join(input_dir, sp_path), "rb") as inf:
-        sp = inf.read()
+    if sp_path is not None:
+        with open(os.path.join(input_dir, sp_path), "rb") as inf:
+            sp = inf.read()
 
     with open(os.path.join(input_dir, jam_path), "rb") as inf:
         jam = inf.read()
@@ -79,8 +83,9 @@ def main():
     os.mkdir(output_path)
     with open(os.path.join(output_path, "adf"), "wb") as outf:
         outf.write(adf)
-    with open(os.path.join(output_path, "sp"), "wb") as outf:
-        outf.write(sp[0x40:])
+    if sp_path is not None:
+        with open(os.path.join(output_path, "sp"), "wb") as outf:
+            outf.write(sp[0x40:])
     shutil.copyfile(os.path.join(input_dir, jar_path), os.path.join(output_path, "jar"))
     if sdf_path is not None:
         shutil.copyfile(os.path.join(input_dir, sdf_path), os.path.join(output_path, "sdf"))
