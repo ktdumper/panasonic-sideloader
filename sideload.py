@@ -1,6 +1,9 @@
 import os
 import sys
 import shutil
+import struct
+import configparser
+from io import StringIO
 
 
 def rm_f(path):
@@ -8,6 +11,22 @@ def rm_f(path):
         os.remove(path)
     except OSError:
         pass
+
+
+adf_template = struct.pack("<I 2052s 4120s I 144s I 20580s I I 12s I 52s I 832s I 260s I 2312s",
+    1, b"http://example.com", b"http://example.com", 0xDEADBEEF, b"", 1, b"", 1, 0x31, b"", 0x31, b"", 2, b"", 0xFFFFFFFF, b"", 0x01000000, b"")
+
+
+def patch_jam(jam, jar_len):
+    config = configparser.ConfigParser()
+    config.read_string("[jam]\r\n" + jam.decode("shift-jis"))
+
+    config["jam"]["AppSize"] = str(jar_len)
+
+    config_string = StringIO()
+    config.write(config_string)
+
+    return config_string.getvalue()[6:].replace("\r\n", "\n").replace("\n", "\r\n").encode("shift-jis")
 
 
 def main():
@@ -34,14 +53,11 @@ def main():
     with open(os.path.join(input_dir, sp_path), "rb") as inf:
         sp = inf.read()
 
-    with open("adf_template", "rb") as inf:
-        adf = bytearray(inf.read())
-
     with open(os.path.join(input_dir, jam_path), "rb") as inf:
         jam = inf.read()
 
-    adf += jam
-    adf[0x1820:0x1824] = len(jam).to_bytes(4, byteorder="little")
+    adf = bytearray(adf_template + patch_jam(jam, os.path.getsize(os.path.join(input_dir, jar_path))))
+    adf[0x1820:0x1824] = struct.pack("<I", len(jam))
 
     target = None
 
