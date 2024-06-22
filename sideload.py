@@ -19,9 +19,11 @@ adf_template = struct.pack("<I 2052s 4120s I 144s I 20580s I I 12s I 52s I 832s 
 
 def patch_jam(jam, jar_len):
     config = configparser.ConfigParser()
+    config.optionxform = str
     config.read_string("[jam]\r\n" + jam.decode("shift-jis"))
 
     config["jam"]["AppSize"] = str(jar_len)
+    config["jam"]["TargetDevice"] = "P01F"
 
     config_string = StringIO()
     config.write(config_string)
