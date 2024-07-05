@@ -180,7 +180,7 @@ def main():
     # For P-01F. Verified.
     max_appli = 100
 
-    for x in range(max_appli-1):
+    for x in range(max_appli):
         if not os.path.exists(os.path.join(output_dir, str(x))):
             target = x
             break
