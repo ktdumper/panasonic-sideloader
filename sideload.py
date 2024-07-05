@@ -13,7 +13,7 @@ def rm_f(path):
     except OSError:
         pass
 
-def patch_jam(jam, jar_len, adf_template):
+def patch_jam(jam, jar_len):
     config = configparser.ConfigParser()
     config.optionxform = str
 
@@ -168,7 +168,7 @@ def main():
 
     adf_template = struct.pack("<I 2052s 4120s 148s 21496s 265s 2315s",
         1, jam_url_for_jam, jar_url_for_jam, b"\x71\x01", b"\x01", b"\xFF\xFF\xFF\xFF", b"\x01")
-    jam = patch_jam(jam, os.path.getsize(os.path.join(input_dir, jar_path)), adf_template)
+    jam = patch_jam(jam, os.path.getsize(os.path.join(input_dir, jar_path)))
 
     adf = bytearray(adf_template + jam)
     adf[0x1820:0x1824] = struct.pack("<I", len(jam))
