@@ -169,8 +169,6 @@ def main():
     else:
         jam_download_url = b"http://example.com/sample.jam"
         jar_download_url = b"http://example.com/sample.jar"
-        
-    print(jam_download_url, jar_download_url)
 
     adf_template = struct.pack("<I 2052s 4120s 148s 21496s 265s 2315s",
         1, jam_download_url, jar_download_url, b"\x71\x01", b"\x01", b"\xFF\xFF\xFF\xFF", b"\x01")
