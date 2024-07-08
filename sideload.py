@@ -108,10 +108,13 @@ def make_sdf(package_url):
         "AllowedLauncherApp": "any",
         "AllowedTcpHost": "any:15000",
         "AllowedUdpHost": "any:15000",
+        "LaunchBySMS": "yes",
+        "LaunchByDTV": "yes",
+        "AppID": "000000000",
         
         # Once enabled, it will be removed from the list.
-        #"LaunchBySMS": "yes",
-        #"MessageApp": "yes",
+        # "MessageApp": "yes",
+        
         "Sts": "0"
     }
 
