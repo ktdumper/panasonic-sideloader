@@ -18,12 +18,12 @@ def patch_jam(jam, jar_len, package_url):
     config.optionxform = str
 
     try:
-        config.read_string("[jam]\r\n" + jam.decode("shift-jis"))
+        config.read_string("[jam]\r\n" + jam.decode("cp932"))
     except UnicodeDecodeError as e:
-        print("WARN: can't patch jam properly due to non-Shift_JIS encoding or other UnicodeDecodeError.")
+        print("WARN: can't patch jam properly due to non-cp932 encoding or other UnicodeDecodeError.")
         print(f"({e})")
         try:
-            config.read_string("[jam]\r\n" + jam.decode("shift-jis", errors="ignore"))
+            config.read_string("[jam]\r\n" + jam.decode("cp932", errors="ignore"))
         except configparser.ParsingError:
             return jam
 
@@ -76,7 +76,7 @@ def patch_jam(jam, jar_len, package_url):
     config_string = StringIO()
     config.write(config_string)
 
-    return config_string.getvalue()[6:].replace("\r\n", "\n").replace("\n", "\r\n").replace("\r\n\r\n", "\r\n").encode("shift-jis")
+    return config_string.getvalue()[6:].replace("\r\n", "\n").replace("\n", "\r\n").replace("\r\n\r\n", "\r\n").encode("cp932")
 
 def make_sdf(package_url):
     config = configparser.ConfigParser()
@@ -121,7 +121,7 @@ def make_sdf(package_url):
     config_string = StringIO()
     config.write(config_string)
     
-    sdf = config_string.getvalue()[6:].replace("\r\n", "\n").replace("\n", "\r\n").replace("\r\n\r\n", "\r\n").encode("shift-jis")
+    sdf = config_string.getvalue()[6:].replace("\r\n", "\n").replace("\n", "\r\n").replace("\r\n\r\n", "\r\n").encode("cp932")
     sdfsize = len(sdf)
     
     sdf_template = struct.pack("<I 4s Q I I",
@@ -157,18 +157,19 @@ def main():
     with open(os.path.join(input_dir, jam_path), "rb") as inf:
         jam = inf.read()
 
-    if package_url := re.search(r"PackageURL\s*=\s*([^\r\n]+)", jam.decode(encoding="shift-jis", errors="ignore")):
+    if package_url := re.search(r"PackageURL\s*=\s*([^\r\n]+)", jam.decode(encoding="cp932", errors="ignore")):
         package_url = package_url[1]
     else:
         package_url = "http://example.com/sample.jar"
         print("WARN: no PackageURL in the jam")
 
+    
     if package_url.startswith("http"):
-        jam_download_url = package_url.replace(".jar", ".jam").encode("shift-jis")
-        jar_download_url = package_url.encode("shift-jis")
+        jam_download_url = package_url.replace(".jar", ".jam").encode("cp932")
+        jar_download_url = package_url.encode("cp932")
     elif m := re.search(r'.+?([^\r\n\/:*?"><|=]+\.jar)', package_url):
-        jam_download_url = f'http://example.com/{m[1].replace(".jar", ".jam")}'.encode("shift-jis")
-        jar_download_url = f'http://example.com/{m[1]}'.encode("shift-jis")
+        jam_download_url = f'http://example.com/{m[1].replace(".jar", ".jam")}'.encode("cp932")
+        jar_download_url = f'http://example.com/{m[1]}'.encode("cp932")
     else:
         jam_download_url = b"http://example.com/sample.jam"
         jar_download_url = b"http://example.com/sample.jar"
