@@ -5,7 +5,11 @@ import struct
 import configparser
 from io import StringIO
 import re
+import argparse
+import logging
 
+def setup_logging():
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
 def rm_f(path):
     try:
@@ -18,65 +22,60 @@ def patch_jam(jam, jar_len, package_url):
     config.optionxform = str
 
     try:
-        config.read_string("[jam]\r\n" + jam.decode("cp932"))
+        config.read_string("[jam]\r\n" + jam.decode("shift-jis"))
     except UnicodeDecodeError as e:
-        print("WARN: can't patch jam properly due to non-cp932 encoding or other UnicodeDecodeError.")
+        print("WARN: can't patch jam properly due to non-JIS encoding or other UnicodeDecodeError.")
         print(f"({e})")
         try:
-            config.read_string("[jam]\r\n" + jam.decode("cp932", errors="ignore"))
+            config.read_string("[jam]\r\n" + jam.decode("shift-jis", errors="ignore"))
         except configparser.ParsingError:
             return jam
+
 
     config["jam"]["PackageURL"] = package_url
     config["jam"]["LastModified"] = "Fri, 01 Jan 2010 00:00:00"
     config["jam"]["AppSize"] = str(jar_len)
 
-    # The document says it needs to be 16 bytes or less, but the reality is different.
-    if config["jam"].get("AppName") == None:
+    if "AppName" not in config["jam"]:
         config["jam"]["AppName"] = "No Name"
 
-    if config["jam"].get("AppClass") == None:
-        print("WARN: no AppClass in the jam")
+    if "AppClass" not in config["jam"]:
+        logging.warning("No AppClass in the jam")
 
-    config["jam"]["AccessUserInfo"] = "yes"
-    config["jam"]["GetSysInfo"] = "yes"
-    config["jam"]["UseTelephone"] = "call"
-    config["jam"]["UseDTV"] = "launch"
-    config["jam"]["UseStorage"] = "ext"
-    config["jam"]["TrustedAPID"] = "00000000000"
-    config["jam"]["GetUtn"] = "userid,terminalid"
-    config["jam"]["AppTrace"] = "on"
-    config["jam"]["LaunchApp"] = "yes"
+    default_values = {
+        "AccessUserInfo": "yes",
+        "GetSysInfo": "yes",
+        "UseTelephone": "call",
+        "UseDTV": "launch",
+        "UseStorage": "ext",
+        "TrustedAPID": "00000000000",
+        "GetUtn": "userid,terminalid",
+        "AppTrace": "on",
+        "LaunchApp": "yes"
+    }
+    for key, value in default_values.items():
+        config["jam"][key] = value
 
-    # Maximum size of the application.
-    if config["jam"].get("SPsize") in [None, ""]:
-        sp_size = 0
-    else:
-        sp_size = sum([int(s) for s in config["jam"].get("SPsize").split(",")])
-
+    sp_size = sum(int(s) for s in config["jam"].get("SPsize", "0").split(","))
     if (jar_len + sp_size > 10240000):
-        print("WARN: the total size of the jar and sp exceeds 10,240 KB.")
+        logging.warning("The total size of the jar and sp exceeds 10,240 KB.")
 
-    # for Star
-    if config["jam"].get("AppType") in ["FullApp", "MiniApp", "FullApp,MiniApp", "MiniApp,FullApp"]:
+    app_type = config["jam"].get("AppType")
+    if app_type in ["FullApp", "MiniApp", "FullApp,MiniApp", "MiniApp,FullApp"]:
         config["jam"]["UseNetwork"] = "yes"
-    # for Doja 
-    elif config["jam"].get("AppType") == None:
+    elif app_type is None:
         config["jam"]["UseNetwork"] = "http"
         config["jam"]["MyConcierge"] = "yes"
     else:
-        print("WARN: invalid AppType")
+        logging.warning(f"Invalid AppType: {app_type}")
 
-    config.remove_option("jam", "TargetDevice")
-    config.remove_option("jam", "MessageCode")
-    config.remove_option("jam", "ProfileVer")
-    config.remove_option("jam", "ConfigurationVer")
-    config.remove_option("jam", "KvmVer")
+    for option in ["TargetDevice", "MessageCode", "ProfileVer", "ConfigurationVer", "KvmVer"]:
+        config["jam"].pop(option, None)
 
     config_string = StringIO()
     config.write(config_string)
 
-    return config_string.getvalue()[6:].replace("\r\n", "\n").replace("\n", "\r\n").replace("\r\n\r\n", "\r\n").encode("cp932")
+    return config_string.getvalue()[6:].replace("\r\n", "\n").replace("\n", "\r\n").replace("\r\n\r\n", "\r\n").encode("shift-jis")
 
 def make_sdf(package_url):
     config = configparser.ConfigParser()
@@ -99,8 +98,6 @@ def make_sdf(package_url):
         "UseATF": "yes",
         "UseVoiceInput": "yes",
         "UseDynamicClassLoader": "yes",
-        "UseFeliCaOnline": "yes",
-        "UseFeliCaOffline": "yes",
         "SetPhoneTheme": "yes",
         "SetLaunchTime": "yes",
         "RequestMyMenu": "yes",
@@ -111,114 +108,145 @@ def make_sdf(package_url):
         "LaunchBySMS": "yes",
         "LaunchByDTV": "yes",
         "AppID": "000000000",
-        
-        # Once enabled, it will be removed from the list.
-        # "MessageApp": "yes",
-        
         "Sts": "0"
     }
 
     config_string = StringIO()
     config.write(config_string)
     
-    sdf = config_string.getvalue()[6:].replace("\r\n", "\n").replace("\n", "\r\n").replace("\r\n\r\n", "\r\n").encode("cp932")
+    sdf = config_string.getvalue()[6:].replace("\r\n", "\n").replace("\n", "\r\n").replace("\r\n\r\n", "\r\n").encode("shift-jis")
     sdfsize = len(sdf)
     
-    sdf_template = struct.pack("<I 4s Q I I",
-        0, b"\xB7\xA1\x06\x67", 0, sdfsize, 0)
+    sdf_template = struct.pack("<I 4s Q I I", 0, b"\xB7\xA1\x06\x67", 0, sdfsize, 0)
 
     return bytearray(sdf_template + sdf)
 
-def main():
-    input_dir = sys.argv[1]
-    output_dir = sys.argv[2]
-
+def process_input_directory(input_dir):
     jar_path = sp_path = jam_path = sdf_path = None
 
     for fname in os.listdir(input_dir):
-        if fname.lower().endswith(".jar"):
+        lower_fname = fname.lower()
+        if lower_fname.endswith(".jar"):
             jar_path = fname
-        elif fname.lower().endswith(".sp"):
+        elif lower_fname.endswith(".sp"):
             sp_path = fname
-        elif fname.lower().endswith(".jam"):
+        elif lower_fname.endswith(".jam"):
             jam_path = fname
-        elif fname.lower().endswith(".sdf"):
+        elif lower_fname.endswith(".sdf"):
             sdf_path = fname
 
     if jar_path is None:
-        raise RuntimeError(f"can't find jar: {input_dir}")
-    elif jam_path is None:
-        raise RuntimeError(f"can't find jam: {input_dir}")
+        raise FileNotFoundError(f"Can't find JAR file in: {input_dir}")
+    if jam_path is None:
+        raise FileNotFoundError(f"Can't find JAM file in: {input_dir}")
 
-    if sp_path is not None:
-        with open(os.path.join(input_dir, sp_path), "rb") as inf:
-            sp = inf.read()
+    return jar_path, sp_path, jam_path, sdf_path
 
-    with open(os.path.join(input_dir, jam_path), "rb") as inf:
-        jam = inf.read()
+def get_package_url(jam_content):
+    package_url = re.search(r"PackageURL\s*=\s*([^\r\n]+)", jam_content.decode(encoding="shift-jis", errors="ignore"))
+    if package_url:
+        return package_url[1]
+    logging.warning("No PackageURL in the jam")
+    return "http://i-mode.localhost.ne.jp/sample.jar"
 
-    if package_url := re.search(r"PackageURL\s*=\s*([^\r\n]+)", jam.decode(encoding="cp932", errors="ignore")):
-        package_url = package_url[1]
-    else:
-        package_url = "http://example.com/sample.jar"
-        print("WARN: no PackageURL in the jam")
-
-    
+def generate_download_urls(package_url):
     if package_url.startswith("http"):
-        jam_download_url = package_url.replace(".jar", ".jam").encode("cp932")
-        jar_download_url = package_url.encode("cp932")
+        jam_download_url = package_url.replace(".jar", ".jam").encode("shift-jis")
+        jar_download_url = package_url.encode("shift-jis")
     elif m := re.search(r'.+?([^\r\n\/:*?"><|=]+\.jar)', package_url):
-        jam_download_url = f'http://example.com/{m[1].replace(".jar", ".jam")}'.encode("cp932")
-        jar_download_url = f'http://example.com/{m[1]}'.encode("cp932")
+        jam_download_url = f'http://i-mode.localhost.ne.jp/{m[1].replace(".jar", ".jam")}'.encode("shift-jis")
+        jar_download_url = f'http://i-mode.localhost.ne.jp/{m[1]}'.encode("shift-jis")
     else:
-        jam_download_url = b"http://example.com/sample.jam"
-        jar_download_url = b"http://example.com/sample.jar"
+        jam_download_url = b"http://i-mode.localhost.ne.jp/sample.jam"
+        jar_download_url = b"http://i-mode.localhost.ne.jp/sample.jar"
+    return jam_download_url, jar_download_url
 
-    adf_template = struct.pack("<I 2052s 4120s 148s 21496s 265s 2315s",
-        1, jam_download_url, jar_download_url, b"\x71\x01", b"\x01", b"\xFF\xFF\xFF\xFF", b"\x01")
-    jam = patch_jam(jam, os.path.getsize(os.path.join(input_dir, jar_path)), package_url)
+def get_next_available_number(install_dir):
+    existing_dirs = [d for d in os.listdir(install_dir) if os.path.isdir(os.path.join(install_dir, d)) and d.isdigit()]
+    if not existing_dirs:
+        return 0
+    return max(map(int, existing_dirs)) + 1
 
-    adf = bytearray(adf_template + jam)
-    adf[0x1820:0x1824] = struct.pack("<I", len(jam))
-    
-    sdf = make_sdf(package_url)
+def process_folder(input_folder, install_dir):
+    try:
+        jar_path, sp_path, jam_path, sdf_path = process_input_directory(input_folder)
 
-    target = None
+        with open(os.path.join(input_folder, jam_path), "rb") as inf:
+            jam = inf.read()
 
-    # For P-01F. Verified.
-    max_appli = 100
+        package_url = get_package_url(jam)
+        jam_download_url, jar_download_url = generate_download_urls(package_url)
 
-    for x in range(max_appli):
-        if not os.path.exists(os.path.join(output_dir, str(x))):
-            target = x
-            break
+        adf_template = struct.pack("<I 2052s 4120s 148s 21496s 265s 2315s",
+            1, jam_download_url, jar_download_url, b"\x71\x01", b"\x01", b"\xFF\xFF\xFF\xFF", b"\x01")
+        
+        jar_size = os.path.getsize(os.path.join(input_folder, jar_path))
+        patched_jam = patch_jam(jam, jar_size, package_url)
 
-    if target is None:
-        raise RuntimeError(f"The maximum number of i-applis has been reached: {max_appli}")
+        adf = bytearray(adf_template + patched_jam)
+        adf[0x1820:0x1824] = struct.pack("<I", len(patched_jam))
+        
+        sdf = make_sdf(package_url)
 
-    output_path = os.path.join(output_dir, str(target))
-    os.mkdir(output_path)
+        next_number = get_next_available_number(install_dir)
+        output_path = os.path.join(install_dir, str(next_number))
+        os.makedirs(output_path, exist_ok=True)
 
-    with open(os.path.join(output_path, "adf"), "wb") as outf:
-        outf.write(adf)
+        with open(os.path.join(output_path, "adf"), "wb") as outf:
+            outf.write(adf)
 
-    if sp_path is not None:
-        with open(os.path.join(output_path, "sp"), "wb") as outf:
-            outf.write(sp[0x40:])
+        if sp_path:
+            with open(os.path.join(input_folder, sp_path), "rb") as inf:
+                sp = inf.read()
+            with open(os.path.join(output_path, "sp"), "wb") as outf:
+                outf.write(sp[0x40:])
 
-    shutil.copyfile(os.path.join(input_dir, jar_path), os.path.join(output_path, "jar"))
+        shutil.copyfile(os.path.join(input_folder, jar_path), os.path.join(output_path, "jar"))
 
-    if sdf_path is None:
-        with open(os.path.join(output_path, "sdf"), "wb") as outf:
-            outf.write(sdf)
+        if sdf_path:
+            shutil.copyfile(os.path.join(input_folder, sdf_path), os.path.join(output_path, "sdf"))
+        else:
+            with open(os.path.join(output_path, "sdf"), "wb") as outf:
+                outf.write(sdf)
+
+        logging.info(f"Successfully Processed {input_folder} => {output_path}")
+
+    except Exception as e:
+        logging.error(f"An error occurred while processing {input_folder}: {str(e)}")
+
+def main():
+    parser = argparse.ArgumentParser(description="PA-Sideloader")
+    parser.add_argument("input_dir", help="Input directory containing folders with JAR, JAM, and optionally SP and SDF files")
+    parser.add_argument("install_dir", help="Install directory for patched files")
+    args = parser.parse_args()
+
+    setup_logging()
+
+    if not os.path.isdir(args.input_dir):
+        logging.error(f"Input directory does not exist: {args.input_dir}")
+        sys.exit(1)
+
+    if not os.path.exists(args.install_dir):
+        os.makedirs(args.install_dir)
+
+    folders_processed = 0
+    items = os.listdir(args.input_dir)
+    if any(item.lower().endswith('.jar') for item in items):
+        process_folder(args.input_dir, args.install_dir)
+        folders_processed = 1
     else:
-        shutil.copyfile(os.path.join(input_dir, sdf_path), os.path.join(output_path, "sdf"))
+        for item in items:
+            item_path = os.path.join(args.input_dir, item)
+            if os.path.isdir(item_path):
+                process_folder(item_path, args.install_dir)
+                folders_processed += 1
+            else:
+                logging.warning(f"Skipping non-directory item: {item}")
+
+    logging.info(f"Processed {folders_processed} Application{'s' if folders_processed != 1 else ''}")
 
     for filename in ["Entry", "JavaAdl", "JavaSys", "PushSms"]:
-        rm_f(os.path.join(output_dir, filename))
-
-    print("{} => {}".format(input_dir, output_path))
-
+        rm_f(os.path.join(args.install_dir, filename))
 
 if __name__ == "__main__":
     main()
