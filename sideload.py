@@ -22,12 +22,12 @@ def patch_jam(jam, jar_len, package_url):
     config.optionxform = str
 
     try:
-        config.read_string("[jam]\r\n" + jam.decode("shift-jis"))
+        config.read_string("[jam]\r\n" + jam.decode("cp932"))
     except UnicodeDecodeError as e:
-        print("WARN: can't patch jam properly due to non-JIS encoding or other UnicodeDecodeError.")
+        print("WARN: can't patch jam properly due to non-CP932 encoding or other UnicodeDecodeError.")
         print(f"({e})")
         try:
-            config.read_string("[jam]\r\n" + jam.decode("shift-jis", errors="ignore"))
+            config.read_string("[jam]\r\n" + jam.decode("cp932", errors="ignore"))
         except configparser.ParsingError:
             return jam
 
@@ -75,7 +75,7 @@ def patch_jam(jam, jar_len, package_url):
     config_string = StringIO()
     config.write(config_string)
 
-    return config_string.getvalue()[6:].replace("\r\n", "\n").replace("\n", "\r\n").replace("\r\n\r\n", "\r\n").encode("shift-jis")
+    return config_string.getvalue()[6:].replace("\r\n", "\n").replace("\n", "\r\n").replace("\r\n\r\n", "\r\n").encode("cp932")
 
 def make_sdf(package_url):
     config = configparser.ConfigParser()
@@ -114,7 +114,7 @@ def make_sdf(package_url):
     config_string = StringIO()
     config.write(config_string)
     
-    sdf = config_string.getvalue()[6:].replace("\r\n", "\n").replace("\n", "\r\n").replace("\r\n\r\n", "\r\n").encode("shift-jis")
+    sdf = config_string.getvalue()[6:].replace("\r\n", "\n").replace("\n", "\r\n").replace("\r\n\r\n", "\r\n").encode("cp932")
     sdfsize = len(sdf)
     
     sdf_template = struct.pack("<I 4s Q I I", 0, b"\xB7\xA1\x06\x67", 0, sdfsize, 0)
@@ -143,7 +143,7 @@ def process_input_directory(input_dir):
     return jar_path, sp_path, jam_path, sdf_path
 
 def get_package_url(jam_content):
-    package_url = re.search(r"PackageURL\s*=\s*([^\r\n]+)", jam_content.decode(encoding="shift-jis", errors="ignore"))
+    package_url = re.search(r"PackageURL\s*=\s*([^\r\n]+)", jam_content.decode(encoding="cp932", errors="ignore"))
     if package_url:
         return package_url[1]
     logging.warning("No PackageURL in the jam")
@@ -151,11 +151,11 @@ def get_package_url(jam_content):
 
 def generate_download_urls(package_url):
     if package_url.startswith("http"):
-        jam_download_url = package_url.replace(".jar", ".jam").encode("shift-jis")
-        jar_download_url = package_url.encode("shift-jis")
+        jam_download_url = package_url.replace(".jar", ".jam").encode("cp932")
+        jar_download_url = package_url.encode("cp932")
     elif m := re.search(r'.+?([^\r\n\/:*?"><|=]+\.jar)', package_url):
-        jam_download_url = f'http://i-mode.localhost.ne.jp/{m[1].replace(".jar", ".jam")}'.encode("shift-jis")
-        jar_download_url = f'http://i-mode.localhost.ne.jp/{m[1]}'.encode("shift-jis")
+        jam_download_url = f'http://i-mode.localhost.ne.jp/{m[1].replace(".jar", ".jam")}'.encode("cp932")
+        jar_download_url = f'http://i-mode.localhost.ne.jp/{m[1]}'.encode("cp932")
     else:
         jam_download_url = b"http://i-mode.localhost.ne.jp/sample.jam"
         jar_download_url = b"http://i-mode.localhost.ne.jp/sample.jar"
