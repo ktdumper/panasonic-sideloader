@@ -57,15 +57,19 @@ def patch_jam(jam, jar_len, package_url):
         config["jam"][key] = value
 
     sp_size = sum(int(s) for s in config["jam"].get("SPsize", "0").split(","))
-    if (jar_len + sp_size > 10240000):
-        logging.warning("The total size of the jar and sp exceeds 10,240 KB.")
-
     app_type = config["jam"].get("AppType")
+    
     if app_type in ["FullApp", "MiniApp", "FullApp,MiniApp", "MiniApp,FullApp"]:
         config["jam"]["UseNetwork"] = "yes"
+        
+        if (jar_len + sp_size > 10 * 1024 * 1024):
+            logging.warning("The total size of the jar and sp exceeds 10,240 KB.")
     elif app_type is None:
         config["jam"]["UseNetwork"] = "http"
         config["jam"]["MyConcierge"] = "yes"
+        
+        if (jar_len + sp_size > 1 * 1024 * 1024):
+            logging.warning("The total size of the jar and sp exceeds 1,024 KB.")
     else:
         logging.warning(f"Invalid AppType: {app_type}")
 
