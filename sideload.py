@@ -79,7 +79,7 @@ def patch_jam(jam, jar_len, package_url):
     config_string = StringIO()
     config.write(config_string)
 
-    return config_string.getvalue()[6:].replace("\r\n", "\n").replace("\n", "\r\n").replace("\r\n\r\n", "\r\n").encode("cp932")
+    return config_string.getvalue()[6:].replace("\r\n", "\n").replace("\n", "\r\n").replace("\r\n\r\n", "\r\n").encode("cp932"), sp_size
 
 def make_sdf(package_url):
     config = configparser.ConfigParser()
@@ -185,7 +185,8 @@ def process_folder(input_folder, install_dir):
             1, jam_download_url, jar_download_url, b"\x71\x01", b"\x01", b"\xFF\xFF\xFF\xFF", b"\x01")
         
         jar_size = os.path.getsize(os.path.join(input_folder, jar_path))
-        patched_jam = patch_jam(jam, jar_size, package_url)
+        sp_filesize = os.path.getsize(os.path.join(input_folder, sp_path))
+        patched_jam, sp_size = patch_jam(jam, jar_size, package_url)
 
         adf = bytearray(adf_template + patched_jam)
         adf[0x1820:0x1824] = struct.pack("<I", len(patched_jam))
@@ -203,7 +204,10 @@ def process_folder(input_folder, install_dir):
             with open(os.path.join(input_folder, sp_path), "rb") as inf:
                 sp = inf.read()
             with open(os.path.join(output_path, "sp"), "wb") as outf:
-                outf.write(sp[0x40:])
+                if sp_filesize == (sp_size + 64):
+                    outf.write(sp[0x40:])
+                else:
+                    outf.write(sp)
 
         shutil.copyfile(os.path.join(input_folder, jar_path), os.path.join(output_path, "jar"))
 
